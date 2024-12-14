@@ -22,19 +22,18 @@ class DiagramDynamic:
             self.canvas.itemconfigure(image_id, image=new_photo)
 
     def update_values(self, intermediates, label):
-        # Update input "Val=..." with input mean
+        # Update input mean
         if ("input", "text") in self.layout.elements:
             text_id = self.layout.elements[("input", "text")]
             input_data = intermediates["input"]
             input_mean = input_data.mean()
             self.canvas.itemconfigure(text_id, text=f"Val={input_mean:.2f}")
 
-        # Update conv filter images
+        # Conv filters
         if "conv" in intermediates:
             conv_out = intermediates["conv"]
             _, C, H_out, W_out = conv_out.shape
-            scale_factor = min(140 / W_out, 140 / H_out)
-
+            scale_factor = min(70 / W_out, 70 / H_out)
             for i in range(C):
                 filter_map = conv_out[0, i, :, :]
                 f_min, f_max = filter_map.min(), filter_map.max()
@@ -54,26 +53,22 @@ class DiagramDynamic:
                 if key in self.layout.elements:
                     filter_id = self.layout.elements[key]
                     self.canvas.itemconfigure(filter_id, image=filter_photo)
-
                 if not hasattr(self, "conv_filter_photos"):
                     self.conv_filter_photos = {}
                 self.conv_filter_photos[i] = filter_photo
 
-        # Update FC layer neurons color intensity based on FC output (pre-softmax)
-        # and highlight correctness and top-k classes
+        # FC layer
         if "fc" in intermediates:
-            fc_out = intermediates["fc"][0]  # shape (10,)
+            fc_out = intermediates["fc"][0]
             f_min, f_max = fc_out.min(), fc_out.max()
-            diff = f_max - f_min if f_max > f_min else 1.0
-
-            # Reset FC neuron outlines to default
+            diff = f_max - f_min if f_max > f_min else 1
+            # Reset outlines
             for i in range(10):
                 key = ("fc", f"neuron_{i}")
                 if key in self.layout.elements:
                     n_id = self.layout.elements[key]
                     self.canvas.itemconfigure(n_id, outline="black", width=1)
-
-            # Update neuron color by activation
+            # Update color intensity
             for i in range(10):
                 val_norm = (fc_out[i] - f_min) / diff
                 intensity = int(val_norm * 255)
@@ -83,24 +78,21 @@ class DiagramDynamic:
                     n_id = self.layout.elements[key]
                     self.canvas.itemconfigure(n_id, fill=color)
 
-        # Softmax predictions and top-k classes
+        # Softmax and top-k
         if "softmax" in intermediates:
-            softmax_out = intermediates["softmax"][0]  # shape (10,)
+            softmax_out = intermediates["softmax"][0]
             pred_class = np.argmax(softmax_out)
 
-            # Update predicted class text
             if ("softmax", "class_text") in self.layout.elements:
                 class_text_id = self.layout.elements[("softmax", "class_text")]
                 self.canvas.itemconfigure(
                     class_text_id, text=f"Predicted: {pred_class}"
                 )
 
-            # Update label
             if ("softmax", "label_text") in self.layout.elements:
                 label_text_id = self.layout.elements[("softmax", "label_text")]
                 self.canvas.itemconfigure(label_text_id, text=f"Label: {label}")
 
-            # Top-k classes
             k = 3
             topk_indices = np.argsort(softmax_out)[::-1][:k]
             for i, idx in enumerate(topk_indices):
@@ -112,17 +104,44 @@ class DiagramDynamic:
                     tk_id = self.layout.elements[tk_key]
                     self.canvas.itemconfigure(tk_id, text=text, font=font_style)
 
+            # Probability bar chart
+            bar_height_max = self.layout.bar_height_max
+            bar_spacing = self.layout.bar_spacing
+            bar_x_start = self.layout.bar_x_start
+            bar_width = self.layout.bar_width
+            bar_y_start = self.layout.bar_y_start
+
+            for c in range(10):
+                cy = bar_y_start + c * (bar_height_max + bar_spacing)
+                prob = softmax_out[c]
+                bar_height = int(prob * bar_height_max)
+                # we decided top: cy+(bar_height_max - bar_height), bottom: cy+bar_height_max
+                bar_top = cy + (bar_height_max - bar_height)
+                bar_bottom = cy + bar_height_max
+                bar_key = ("softmax", f"class_bar_{c}")
+                if bar_key in self.layout.elements:
+                    bar_id = self.layout.elements[bar_key]
+                    self.canvas.coords(
+                        bar_id,
+                        bar_x_start,
+                        bar_top,
+                        bar_x_start + bar_width,
+                        bar_bottom,
+                    )
+
+                label_key = ("softmax", f"class_bar_label_{c}")
+                if label_key in self.layout.elements:
+                    label_id = self.layout.elements[label_key]
+                    self.canvas.itemconfigure(label_id, text=f"{c}: {prob*100:.2f}%")
+
             # Compare predicted class with actual label
             correct = pred_class == label
-
-            # Highlight predicted neuron
             pred_key = ("fc", f"neuron_{pred_class}")
             if pred_key in self.layout.elements:
                 pred_id = self.layout.elements[pred_key]
                 outline_color = "green" if correct else "red"
                 self.canvas.itemconfigure(pred_id, outline=outline_color, width=2)
 
-            # If incorrect, highlight correct class neuron in blue
             if not correct:
                 correct_key = ("fc", f"neuron_{label}")
                 if correct_key in self.layout.elements:
