@@ -10,8 +10,8 @@ class DiagramLayout:
             "input": 100,
             "conv": 400,
             "relu_pool": 800,
-            "flatten": 950,
-            "fc": 1100,
+            "flatten": 1050,
+            "fc": 1300,
             "softmax": 1500,
         }
         self.y_center = 300
@@ -240,24 +240,24 @@ class DiagramLayout:
         # Probability bar chart
         # We'll stack bars vertically, class 0 at top, class 9 at bottom
         # each bar on the right of these texts
-        bar_x_start = softmax_center_x
-        bar_y_start = softmax_text_y + 20
+        bar_x_start = softmax_center_x - 200
+        bar_y_start = softmax_text_y + 100
         bar_width = 100
-        bar_height_max = 100
-        bar_spacing = 15
+        bar_height_max = 50
+        bar_spacing = 5
 
         # store these for dynamic to know top coords
         self.bar_width = bar_width
         self.bar_height_max = bar_height_max
         self.bar_x_start = bar_x_start
-        self.bar_y_start = bar_y_start
-        self.bar_spacing = bar_spacing
+        self.bar_y_start = bar_y_start - 350  # move up a bit
+        self.bar_spacing = bar_spacing  # reduce spacing
 
         for c in range(10):
             cy = bar_y_start + c * (bar_height_max + bar_spacing)
             # Initially zero-length
             bar_id = self.canvas.create_rectangle(
-                bar_x_start,
+                bar_x_start - 150,
                 cy,
                 bar_x_start + 1,
                 cy,  # tiny line
@@ -267,7 +267,7 @@ class DiagramLayout:
             self.elements[("softmax", f"class_bar_{c}")] = bar_id
             label_id = self.canvas.create_text(
                 bar_x_start + bar_width + 30,
-                cy,
+                cy - 300,
                 text=f"{c}: 0.00%",
                 font=("Helvetica", 12),
                 fill="black",
