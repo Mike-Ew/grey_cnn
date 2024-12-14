@@ -5,7 +5,6 @@ from src.dynamic import DiagramDynamic
 from src.data import load_mnist_data
 from src.network import Network
 import numpy as np
-import random
 
 
 def main():
@@ -71,7 +70,7 @@ def main():
 
     dynamic = DiagramDynamic(canvas, layout)
 
-    # Use a dictionary to store training state instead of nonlocal variables
+    # Training state in a dictionary
     training_state = {
         "is_training": False,
         "is_paused": False,
@@ -79,7 +78,8 @@ def main():
         "current_batch": 0,
         "max_epochs": 5,
         "batch_size": 64,
-        "num_batches": 1,  # will be set after reading entries
+        "num_batches": 1,
+        "current_index": 0,  # For cycling through X_train images for visualization
     }
 
     learning_rate = 0.01
@@ -103,6 +103,7 @@ def main():
         X_batch = X_train[start:end]
         y_batch = y_train[start:end]
 
+        # Perform loss and backward pass
         loss = net.loss_and_backward(X_batch, y_batch)
 
         # Update params
@@ -115,12 +116,23 @@ def main():
         # Update progress
         update_progress()
 
-        # Visualize with a sample image
-        sample_idx = random.randint(0, X_test.shape[0] - 1)
-        img_4d = X_test[sample_idx : sample_idx + 1]
-        label = y_test[sample_idx]
+        # Display a sample input from X_train itself as we cycle through them
+        i = training_state["current_index"]
+        img_4d = X_train[i : i + 1]
+        label = y_train[i]
+
+        # Convert to uint8 for display
+        img_2d = (img_4d[0, 0] * 255).astype(np.uint8)
+        dynamic.update_input_image(img_2d)
+
+        # Forward with intermediates
         intermediates = net.forward_with_intermediates(img_4d)
         dynamic.update_values(intermediates, label)
+
+        # Move to next image
+        training_state["current_index"] = (
+            training_state["current_index"] + 1
+        ) % X_train.shape[0]
 
         training_state["current_batch"] += 1
         if training_state["current_batch"] > training_state["num_batches"]:
@@ -162,7 +174,6 @@ def main():
     pause_button.config(command=pause_training)
     stop_button.config(command=stop_training)
 
-    # set scrollregion after a short delay
     root.after(1000, lambda: canvas.config(scrollregion=canvas.bbox("all")))
 
     root.mainloop()
